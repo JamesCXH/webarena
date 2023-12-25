@@ -19,6 +19,8 @@ def call_llm(
     if lm_config.provider == "openai":
         if lm_config.mode == "chat":
             assert isinstance(prompt, list)
+            # print("PROMPT: ")
+            # print(prompt[-1])
             response = generate_from_openai_chat_completion(
                 messages=prompt,
                 model=lm_config.model,
@@ -28,6 +30,8 @@ def call_llm(
                 max_tokens=lm_config.gen_config["max_tokens"],
                 stop_token=None,
             )
+            # print("CHAT RESPONSE")
+            # print(response)
         elif lm_config.mode == "completion":
             assert isinstance(prompt, str)
             response = generate_from_openai_completion(
@@ -38,6 +42,8 @@ def call_llm(
                 top_p=lm_config.gen_config["top_p"],
                 stop_token=lm_config.gen_config["stop_token"],
             )
+            # print("NORMAL RESPONSE")
+            # print(response)
         else:
             raise ValueError(
                 f"OpenAI models do not support mode {lm_config.mode}"

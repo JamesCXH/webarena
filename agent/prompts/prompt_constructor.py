@@ -35,7 +35,7 @@ class PromptConstructor(object):
         self.instruction: Instruction = instruction
         self.tokenizer = tokenizer
 
-    def get_lm_api_input(
+    def get_lm_api_input(  # USED FOR CoT
         self, intro: str, examples: list[tuple[str, str]], current: str
     ) -> APIInput:
 
@@ -169,7 +169,9 @@ class DirectPromptConstructor(PromptConstructor):
         keywords = self.instruction["meta_data"]["keywords"]
         state_info: StateInfo = trajectory[-1]  # type: ignore[assignment]
 
-        obs = state_info["observation"][self.obs_modality]
+        obs = state_info["observation"][
+            self.obs_modality
+        ]  # We hacve image and text, we are only using text right now
         max_obs_length = self.lm_config.gen_config["max_obs_length"]
         if max_obs_length:
             obs = self.tokenizer.decode(self.tokenizer.encode(obs)[:max_obs_length])  # type: ignore[arg-type]
@@ -226,8 +228,16 @@ class CoTPromptConstructor(PromptConstructor):
         template = self.instruction["template"]
         keywords = self.instruction["meta_data"]["keywords"]
         state_info: StateInfo = trajectory[-1]  # type: ignore[assignment]
+        # print("STATE INFO")
+        # print(state_info)
+        """
+        State info is raw information about the current web page
+        """
 
         obs = state_info["observation"][self.obs_modality]
+        # print("CONSTRUCT OBS: ")
+        # print(obs)
+        # print("CONSTRUCT END")
         max_obs_length = self.lm_config.gen_config["max_obs_length"]
         if max_obs_length:
             obs = self.tokenizer.decode(self.tokenizer.encode(obs)[:max_obs_length])  # type: ignore[arg-type]
@@ -243,8 +253,16 @@ class CoTPromptConstructor(PromptConstructor):
         )
 
         assert all([f"{{k}}" not in current for k in keywords])
+        print("INTRO: ")
+        print(intro)
+        print("EXAMPLES: ")
+        print(examples[0])
+        print("CURRENT: ")
+        print(current)
 
         prompt = self.get_lm_api_input(intro, examples, current)
+        # print("PROMPT: ")
+        # print(prompt)
         return prompt
 
     def _extract_action(self, response: str) -> str:

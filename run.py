@@ -277,11 +277,30 @@ def test(
             logger.info(f"[Config file]: {config_file}")
             logger.info(f"[Intent]: {intent}")
 
-            agent.reset(config_file)
+            agent.reset(config_file)  # Does nothing for PromptAgent.
             trajectory: Trajectory = []
-            obs, info = env.reset(options={"config_file": config_file})
+            pre_traversal_trajectory = []
+            obs, info = env.reset(
+                options={"config_file": config_file}
+            )  # Instead of env.reset, pull out of a tree
+            """
+
+            Trajectory is a list of StateInfos, each StateInfo is a dict with keys "observation" and "info"
+
+            These two are ripped from browser_env/envs.py
+
+            """
             state_info: StateInfo = {"observation": obs, "info": info}
+            # print("OBSSSS")
+            # print(obs['text'])
+            # print("INFO ENDD")
+            # print(info)
+            # print("TRAJ 1")
+            # print(trajectory)
             trajectory.append(state_info)
+
+            # print("TRAJ 2")
+            # print(trajectory)
 
             meta_data = {"action_history": ["None"]}
             while True:
@@ -299,9 +318,13 @@ def test(
                     except ValueError as e:
                         # get the error message
                         action = create_stop_action(f"ERROR: {str(e)}")
-
                 trajectory.append(action)
 
+                """
+
+                Process action below
+
+                """
                 action_str = get_action_description(
                     action,
                     state_info["info"]["observation_metadata"],
@@ -362,7 +385,7 @@ def test(
         render_helper.close()
 
     env.close()
-    logger.info(f"Average score: {sum(scores) / len(scores)}")
+    logger.info(f"Average score: {sum(scores) / max(1, len(scores))}")
 
 
 def prepare(args: argparse.Namespace) -> None:
@@ -429,7 +452,7 @@ if __name__ == "__main__":
     else:
         print(f"Total {len(test_file_list)} tasks left")
         args.render = False
-        args.render_screenshot = True
+        args.render_screenshot = False
         args.save_trace_enabled = True
 
         args.current_viewport_only = True

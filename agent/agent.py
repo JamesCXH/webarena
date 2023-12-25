@@ -122,6 +122,9 @@ class PromptAgent(Agent):
         prompt = self.prompt_constructor.construct(
             trajectory, intent, meta_data
         )
+        # print("PROMPT START: \n")
+        # print(prompt)
+        # print("\n PROMPT END")
         lm_config = self.lm_config
         n = 0
         while True:
@@ -135,8 +138,11 @@ class PromptAgent(Agent):
                 parsed_response = self.prompt_constructor.extract_action(
                     response
                 )
-                if self.action_set_tag == "id_accessibility_tree":
+                if (
+                    self.action_set_tag == "id_accessibility_tree"
+                ):  # we are using acc trees
                     action = create_id_based_action(parsed_response)
+                    # print("FUCK1")
                 elif self.action_set_tag == "playwright":
                     action = create_playwright_action(parsed_response)
                 else:
@@ -150,7 +156,8 @@ class PromptAgent(Agent):
                     action = create_none_action()
                     action["raw_prediction"] = response
                     break
-
+        # print("ACTION: ")
+        # print(action)
         return action
 
     def reset(self, test_config_file: str) -> None:

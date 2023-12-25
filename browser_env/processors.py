@@ -103,7 +103,7 @@ class TextObervationProcessor(ObservationProcessor):
 
         # assert len(tree['documents']) == 1, "More than one document in the DOM tree"
         info: BrowserInfo = {"DOMTree": tree, "config": config}
-
+        # Spews out a lot of unstructured information
         return info
 
     @staticmethod
@@ -360,6 +360,27 @@ class TextObervationProcessor(ObservationProcessor):
         html = dfs(0, 0)
         return html, obs_nodes_info
 
+    def extract_url_from_node(self, client: CDPSession, node: dict) -> str:
+        """
+        Extracts the URL from an accessibility node if it represents a link.
+        """
+        try:
+            backend_node_id = node.get("backendDOMNodeId")
+            if backend_node_id:
+                # Fetch the corresponding DOM node
+                dom_node = client.send(
+                    "DOM.describeNode", {"backendNodeId": backend_node_id}
+                )
+                if "attributes" in dom_node["node"]:
+                    # Extract href attribute
+                    attributes = dom_node["node"]["attributes"]
+                    for i in range(0, len(attributes), 2):
+                        if attributes[i] == "href":
+                            return attributes[i + 1]
+        except Exception as e:
+            print(f"Error extracting URL: {e}")
+        return ""
+
     def fetch_page_accessibility_tree(
         self,
         info: BrowserInfo,
@@ -380,6 +401,9 @@ class TextObervationProcessor(ObservationProcessor):
         accessibility_tree = _accessibility_tree
 
         nodeid_to_cursor = {}
+        links = []
+        links_wurls = []
+        links_nourls = []
         for cursor, node in enumerate(accessibility_tree):
             nodeid_to_cursor[node["nodeId"]] = cursor
             # usually because the node is not visible etc
@@ -391,6 +415,18 @@ class TextObervationProcessor(ObservationProcessor):
                 # always inside the viewport
                 node["union_bound"] = [0.0, 0.0, 10.0, 10.0]
             else:
+
+                if node["role"]["value"] == "link":
+                    # print(node)
+                    node_url = self.extract_url_from_node(client, node)
+                    if node_url[0] == "h":  # fix this this sucks
+                        # print("NODE URL:")
+                        # print(str(node["nodeId"]) + ": " + node_url)
+                        links_wurls.append(node["nodeId"])
+                    else:
+                        links_nourls.append(node["nodeId"])
+                    links.append(node["nodeId"])
+
                 response = self.get_bounding_client_rect(
                     client, backend_node_id
                 )
@@ -402,7 +438,9 @@ class TextObervationProcessor(ObservationProcessor):
                     width = response["result"]["value"]["width"]
                     height = response["result"]["value"]["height"]
                     node["union_bound"] = [x, y, width, height]
-
+        # print("LINKS IDS: \n")
+        # print(links)
+        # print(links_wurls)
         # filter nodes that are not in the current viewport
         if current_viewport_only:
 
@@ -471,7 +509,7 @@ class TextObervationProcessor(ObservationProcessor):
         return accessibility_tree
 
     @staticmethod
-    def parse_accessibility_tree(
+    def parse_accessibility_tree(  # LINKSS
         accessibility_tree: AccessibilityTree,
     ) -> tuple[str, dict[str, Any]]:
         """Parse the accessibility tree into a string text"""
@@ -487,7 +525,7 @@ class TextObervationProcessor(ObservationProcessor):
             indent = "\t" * depth
             valid_node = True
             try:
-                role = node["role"]["value"]
+                role = node["role"]["value"]  # Role identifies links
                 name = node["name"]["value"]
                 node_str = f"[{obs_node_id}] {role} {repr(name)}"
                 properties = []
@@ -555,6 +593,9 @@ class TextObervationProcessor(ObservationProcessor):
             return tree_str
 
         tree_str = dfs(0, accessibility_tree[0]["nodeId"], 0)
+        # print("TREE START: \n")
+        # print(tree_str)
+        # print("TREE END")
         return tree_str, obs_nodes_info
 
     @staticmethod
@@ -579,11 +620,14 @@ class TextObervationProcessor(ObservationProcessor):
 
         return "\n".join(clean_lines)
 
-    def process(self, page: Page, client: CDPSession) -> str:
+    def process(
+        self, page: Page, client: CDPSession
+    ) -> str:  # How getting links
         # get the tab info
         open_tabs = page.context.pages
         try:
             tab_titles = [tab.title() for tab in open_tabs]
+
             current_tab_idx = open_tabs.index(page)
             for idx in range(len(open_tabs)):
                 if idx == current_tab_idx:
@@ -612,6 +656,7 @@ class TextObervationProcessor(ObservationProcessor):
                 current_viewport_only=self.current_viewport_only,
             )
             content, obs_nodes_info = self.parse_html(dom_tree)
+
             self.obs_nodes_info = obs_nodes_info
             self.meta_data["obs_nodes_info"] = obs_nodes_info
 
@@ -621,10 +666,21 @@ class TextObervationProcessor(ObservationProcessor):
                 client,
                 current_viewport_only=self.current_viewport_only,
             )
-            content, obs_nodes_info = self.parse_accessibility_tree(
+            # print("RAW ACC TREE: \n")
+            # print(accessibility_tree)
+            # Tree of ids
+            (
+                content,
+                obs_nodes_info,
+            ) = self.parse_accessibility_tree(  # Here get links?
                 accessibility_tree
             )
+            # print("obs_nodes_info: \n")
+            # print(obs_nodes_info)
+            # print("obs_nodes_info END")
             content = self.clean_accesibility_tree(content)
+            # print("CLEANED ACC TREE: \n")
+            # print(content)
             self.obs_nodes_info = obs_nodes_info
             self.meta_data["obs_nodes_info"] = obs_nodes_info
 
@@ -666,6 +722,12 @@ class ImageObservationProcessor(ObservationProcessor):
 
 class ObservationHandler:
     """Main entry point to access all observation processor"""
+
+    """
+
+    Gets the observations from the page and returns them in a dictionary.
+
+    """
 
     def __init__(
         self,
@@ -710,8 +772,13 @@ class ObservationHandler:
     def get_observation(
         self, page: Page, client: CDPSession
     ) -> dict[str, Observation]:
-        text_obs = self.text_processor.process(page, client)
+        text_obs = self.text_processor.process(
+            page, client
+        )  # Magically structured
         image_obs = self.image_processor.process(page, client)
+        # print("TEXT OBS: \n")
+        # print(text_obs)
+        # print("TEXT OBS END")
         return {"text": text_obs, "image": image_obs}
 
     def get_observation_metadata(self) -> dict[str, ObservationMetadata]:

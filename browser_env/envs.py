@@ -210,7 +210,9 @@ class ScriptBrowserEnv(Env[dict[str, Observation], Action]):
         if self.sleep_after_execution > 0:
             time.sleep(self.sleep_after_execution)
 
-        observation = self._get_obs()
+        observation = self._get_obs()  # Gets observations after reset
+        # print("OBSSSSS")
+        # print(observation['text'])
         observation_metadata = self._get_obs_metadata()
         info = {
             "page": DetachedPage(self.page.url, ""),
